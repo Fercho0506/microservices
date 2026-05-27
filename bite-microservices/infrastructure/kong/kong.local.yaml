@@ -1,0 +1,36 @@
+_format_version: "3.0"
+_transform: true
+
+# Kong config para desarrollo local con docker-compose
+# Para AWS usa infrastructure/kong/kong.yaml
+
+services:
+  - name: finops-service
+    protocol: http
+    host: finops
+    port: 8080
+    path: /
+    routes:
+      - name: finops-routes
+        paths: [/finops]
+        strip_path: false
+
+  - name: integration-service
+    protocol: http
+    host: integration
+    port: 8081
+    path: /
+    routes:
+      - name: integration-routes
+        paths: [/integration]
+        strip_path: false
+
+  - name: cron-service
+    protocol: http
+    host: cron-worker
+    port: 8082
+    path: /
+    routes:
+      - name: cron-routes
+        paths: [/worker]
+        strip_path: false
