@@ -1,17 +1,39 @@
 #!/bin/bash
 set -e
 
-# Install Docker
+# Logs
+exec > >(tee /var/log/user-data.log)
+exec 2>&1
+
+echo "Iniciando Kong bootstrap..."
+
+export DEBIAN_FRONTEND=noninteractive
+
+# Instalar dependencias
 apt-get update -y
 apt-get install -y docker.io git
 
-# Clone repo
-cd /labs
-git clone https://github.com/YOUR_ORG/bite-microservices.git
-cd bite-microservices
+# Iniciar Docker
+systemctl enable docker
+systemctl start docker
 
-# Write dynamic kong.yaml with actual IPs
-cat > /labs/bite-microservices/infrastructure/kong/kong.yaml << KONG_EOF
+# Permitir uso de Docker
+usermod -aG docker ubuntu
+
+mkdir -p /opt/bite
+cd /opt/bite
+
+# Evitar error si vuelve a ejecutarse
+rm -rf microservices
+
+git clone https://github.com/Fercho0506/microservices.git
+
+cd /opt/bite/microservices
+
+mkdir -p infrastructure/kong
+
+# Crear config dinámica
+cat > /opt/bite/microservices/infrastructure/kong/kong.yaml <<KONG_EOF
 _format_version: "3.0"
 _transform: true
 
@@ -63,7 +85,9 @@ upstreams:
         weight: 100
 KONG_EOF
 
-# Start Kong
+# Limpiar si existe uno previo
+docker rm -f kong || true
+
 docker run -d \
   --name kong \
   --restart unless-stopped \
@@ -76,7 +100,12 @@ docker run -d \
   -e KONG_ADMIN_ACCESS_LOG=/dev/stdout \
   -e KONG_PROXY_ERROR_LOG=/dev/stderr \
   -e KONG_ADMIN_ERROR_LOG=/dev/stderr \
-  -v /labs/bite-microservices/infrastructure/kong/kong.yaml:/kong.yaml \
+  -v /opt/bite/microservices/infrastructure/kong/kong.yaml:/kong.yaml \
   kong:3.6
+
+sleep 10
+
+docker ps
+docker logs kong
 
 echo "Kong started successfully"
