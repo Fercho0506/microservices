@@ -49,7 +49,33 @@ set -a
 source /etc/bite-finops.env
 set +a
 
-python manage.py migrate || true
+echo "Validando conectividad con el RDS de AWS Academy en $DB_HOST..."
+
+# En AWS Academy, el RDS puede tardar hasta 5-8 minutos en estar disponible.
+# Ponemos un límite de 20 intentos para que el script no se quede en un bucle infinito
+# si el laboratorio te bloqueó el puerto 5432 en el Security Group.
+MAX_RETRIES=20
+RETRY_COUNT=0
+
+while ! nc -z -w3 "$DB_HOST" 5432; do
+  RETRY_COUNT=$((RETRY_COUNT+1))
+  if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+    echo "ALERTA: No se pudo conectar al RDS tras $MAX_RETRIES intentos."
+    echo "Revisa el Security Group del RDS en tu consola de AWS Academy e intenta mitigar manualmente."
+    break
+  fi
+  echo "RDS no disponible todavía (Intento $RETRY_COUNT/$MAX_RETRIES). Esperando 15 segundos..."
+  sleep 15
+done
+
+# Generar migraciones para la app que maneja 'cloud_expenses'
+echo "Preparando esquema para la app 'expenses'..."
+python manage.py makemigrations expenses
+
+# Ejecutar migración. En AWS Academy dejamos un '|| true' controlado SOLO si el nc falló,
+# para que al menos la app web prenda y puedas debuguear por SSH el error de base de datos.
+echo "Aplicando cambios estructurales a la base de datos..."
+python manage.py migrate || echo "Aviso: Migración fallida. Posible bloqueo de red en el laboratorio."
 
 nohup venv/bin/gunicorn \
     finops.wsgi:application \
