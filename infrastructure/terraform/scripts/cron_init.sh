@@ -41,7 +41,7 @@ npm install --omit=dev
 cat > /etc/bite-cron.env <<EOF
 INTEGRATION_SERVICE_URL=http://${integration_ip}:8081
 DB_HOST=${db_host}
-DB_NAME=cron_db
+DB_NAME=finops_db
 DB_USER=postgres
 DB_PASSWORD=${db_password}
 PORT=8082
