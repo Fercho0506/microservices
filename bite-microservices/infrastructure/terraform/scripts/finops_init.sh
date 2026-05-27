@@ -1,27 +1,39 @@
 #!/bin/bash
 set -e
 
+# Guardar logs
+exec > >(tee /var/log/user-data.log)
+exec 2>&1
+
+echo "Iniciando FinOps bootstrap..."
+
+export DEBIAN_FRONTEND=noninteractive
+
 apt-get update -y
-apt-get install -y python3 python3-pip git
+apt-get install -y python3 python3-pip python3-venv git
 
-cd /labs
-git clone https://github.com/YOUR_ORG/bite-microservices.git
-cd bite-microservices/finops-service
+# Carpeta de trabajo válida
+mkdir -p /opt/bite
+cd /opt/bite
 
-pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt
+# Evitar error si el script corre otra vez
+rm -rf microservices
 
-export DB_HOST="${db_host}"
-export DB_NAME="finops_db"
-export DB_USER="postgres"
-export DB_PASSWORD="${db_password}"
-export REDIS_HOST="${redis_host}"
-export REDIS_PORT="6379"
-export AUTH0_DOMAIN="${auth0_domain}"
-export AUTH0_AUDIENCE="${auth0_audience}"
-export DJANGO_SETTINGS_MODULE="finops.settings"
+git clone https://github.com/Fercho0506/microservices.git
 
-# Write env file for persistence
-cat > /etc/bite-finops.env << EOF
+cd /opt/bite/microservices/finops-service
+
+# Entorno virtual (muy recomendado en Ubuntu 22.04)
+python3 -m venv venv
+source venv/bin/activate
+
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Si no viene en requirements
+pip install gunicorn
+
+cat > /etc/bite-finops.env <<EOF
 DB_HOST=${db_host}
 DB_NAME=finops_db
 DB_USER=postgres
@@ -30,10 +42,19 @@ REDIS_HOST=${redis_host}
 REDIS_PORT=6379
 AUTH0_DOMAIN=${auth0_domain}
 AUTH0_AUDIENCE=${auth0_audience}
+DJANGO_SETTINGS_MODULE=finops.settings
 EOF
 
-python3 manage.py makemigrations expenses
-python3 manage.py migrate
-gunicorn finops.wsgi:application --bind 0.0.0.0:8080 --workers 4 --daemon --pid /tmp/finops.pid
+set -a
+source /etc/bite-finops.env
+set +a
+
+python manage.py migrate || true
+
+nohup venv/bin/gunicorn \
+    finops.wsgi:application \
+    --bind 0.0.0.0:8080 \
+    --workers 2 \
+    > /var/log/finops.log 2>&1 &
 
 echo "FinOps service started"
