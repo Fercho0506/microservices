@@ -177,7 +177,7 @@ resource "aws_db_subnet_group" "bite_db_subnet" {
 resource "aws_db_instance" "finops_db" {
   identifier             = "bite-finops-db"
   engine                 = "postgres"
-  engine_version         = "15.4"
+  engine_version         = "15"
   instance_class         = var.db_instance_class
   allocated_storage      = 20
   db_name                = "finops_db"
