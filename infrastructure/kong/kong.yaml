@@ -1,0 +1,124 @@
+_format_version: "3.0"
+_transform: true
+
+# ============================================================
+# BITE.co - Kong API Gateway Configuration
+# Microservices: FinOps | Cloud Integration | CRON Worker
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # FinOps Service (ASR 1 + ASR 2)
+  # ----------------------------------------------------------
+  - name: finops-service
+    protocol: http
+    host: finops-lb
+    port: 8080
+    path: /
+    connect_timeout: 5000
+    read_timeout: 10000
+    write_timeout: 10000
+    routes:
+      - name: finops-routes
+        paths:
+          - /finops
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+
+  # ----------------------------------------------------------
+  # Cloud Integration Service (ASR 3)
+  # ----------------------------------------------------------
+  - name: integration-service
+    protocol: http
+    host: integration-lb
+    port: 8081
+    path: /
+    connect_timeout: 5000
+    read_timeout: 30000
+    write_timeout: 30000
+    routes:
+      - name: integration-routes
+        paths:
+          - /integration
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - OPTIONS
+
+  # ----------------------------------------------------------
+  # CRON Worker Service (internal sync)
+  # ----------------------------------------------------------
+  - name: cron-worker-service
+    protocol: http
+    host: cron-lb
+    port: 8082
+    path: /
+    connect_timeout: 5000
+    read_timeout: 120000
+    write_timeout: 120000
+    routes:
+      - name: worker-routes
+        paths:
+          - /worker
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - OPTIONS
+
+upstreams:
+  # FinOps Auto Scaling Group (min:2 desired:3 max:4)
+  - name: finops-lb
+    algorithm: round-robin
+    healthchecks:
+      active:
+        http_path: /finops/health/
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+    targets:
+      - target: FINOPS_SERVER_1_IP:8080
+        weight: 100
+      - target: FINOPS_SERVER_2_IP:8080
+        weight: 100
+
+  # Integration Service
+  - name: integration-lb
+    algorithm: round-robin
+    healthchecks:
+      active:
+        http_path: /integration/health/
+        healthy:
+          interval: 15
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+    targets:
+      - target: INTEGRATION_SERVER_IP:8081
+        weight: 100
+
+  # CRON Worker
+  - name: cron-lb
+    algorithm: round-robin
+    healthchecks:
+      active:
+        http_path: /worker/health/
+        healthy:
+          interval: 30
+          successes: 1
+        unhealthy:
+          interval: 10
+          http_failures: 3
+    targets:
+      - target: CRON_SERVER_IP:8082
+        weight: 100
